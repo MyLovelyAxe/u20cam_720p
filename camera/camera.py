@@ -13,20 +13,6 @@ from constants import (
 )
 
 
-
-@dataclass
-class Image:
-    """Base class for all types of images."""
-
-
-
-@dataclass
-class CompressedImage(Image):
-    """Compressed image."""
-
-
-
-
 @dataclass
 class Intrinsics:
 
