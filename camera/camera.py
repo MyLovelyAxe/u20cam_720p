@@ -199,6 +199,9 @@ class U20Camera(Camera):
             else:
                 return frame
 
+    def release_capture(self):
+        """Stop streaming images."""
+        self.capture.release()
 
 
 if __name__ == "__main__":
