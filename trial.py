@@ -3,6 +3,11 @@ from constants import (
 )
 from camera.camera import Camera, U20Camera
 
-cam = Camera.create_from_json(CALIB_PARAM_JSON)
 u20cam = U20Camera.create_from_json(CALIB_PARAM_JSON)
-print(cam.intrinsics)
+print(u20cam.intrinsics)
+count = 0
+while count < 30:
+    frame = u20cam.get_frame()
+    if frame:
+        print(f"frame shape: {frame.shape}")
+    count +=1

@@ -1,5 +1,6 @@
 import cv2
 import json
+import warnings
 import numpy as np
 from pathlib import Path
 from dataclasses import dataclass
@@ -130,9 +131,10 @@ class Camera:
             alpha=self.alpha,   
             newImgSize=(self.width, self.height),
         )
+        self.roi_x, self.roi_y, self.roi_w, self.roi_h = self.roi
 
     @classmethod
-    def create_from_json(cls, calib_json: Path) -> 'Camera':
+    def create_from_json(cls, calib_json: Path):
         """Create a Camera object given json file with calibration parameters."""
         with open(calib_json, "r") as f:
             calib = json.load(f)
@@ -154,6 +156,29 @@ class Camera:
             calibration_json=calib_json,
         )
 
+    def undistort_frame(self, frame: np.ndarray) -> np.ndarray:
+        """Undistort the current frame."""
+
+        # Undistort
+        undistorted = cv2.undistort(
+            src=frame,
+            cameraMatrix=self.intrinsics.matrix,
+            distCoeffs=self.dist_coeffs,
+            dst=None,
+            newCameraMatrix=self.new_camera_matrix
+        )
+
+        # Crop and resize to original size
+        cropped = undistorted[
+            self.roi_y:self.roi_y+self.roi_h, 
+            self.roi_x:self.roi_x+self.roi_w,
+        ]
+        resized_undistorted = cv2.resize(
+            src=cropped, 
+            dsize=(self.width, self.height), 
+            interpolation=cv2.INTER_LINEAR,
+        )
+        return resized_undistorted
 
 
 @dataclass
@@ -173,6 +198,20 @@ class U20Camera(Camera):
     def __post_init__(self):
         self.capture = cv2.VideoCapture(self.source_device)
 
+    def get_frame(self, undistort: bool = True) -> np.ndarray | None:
+        """Get a frame from a running capture."""
+        if not self.camera_connected:
+            warnings.warn("The camera is not connected, no running capture.")
+            return None
+        else:
+            ret, frame = self.capture.read()
+            if not ret:
+                print("Failed to grab frame")
+                return None
+            if undistort:
+                return self.undistort_frame(frame)
+            else:
+                return frame
 
 
 
@@ -180,3 +219,9 @@ if __name__ == "__main__":
 
     u20cam = U20Camera.create_from_json(CALIB_PARAM_JSON)
     print(u20cam.intrinsics)
+    count = 0
+    while count < 30:
+        frame = u20cam.get_frame()
+        if frame:
+            print(f"frame shape: {frame.shape}")
+        count +=1
