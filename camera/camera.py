@@ -1,6 +1,9 @@
+import warnings
+import logging
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
 import cv2
 import json
-import warnings
 import numpy as np
 from pathlib import Path
 from dataclasses import dataclass
@@ -46,6 +49,7 @@ class Intrinsics:
             dtype=self.data_type,
         )
 
+
     @classmethod
     def create_from_matrix(cls, matrix: np.ndarray) -> 'Intrinsics':
         """Create Intrinsics object with matrix."""
@@ -75,6 +79,7 @@ class Extrinsics:
         hom[0:3, 3] = self.translation
         return hom
     
+
     @classmethod
     def create_from_homogeneous(cls, hom: np.ndarray) -> 'Intrinsics':
         """Create Intrinsics object with matrix."""
@@ -109,7 +114,14 @@ class Camera:
     calibration_json: Optional[Path] = None
     """The u20cam_calib.json containing the camera calibration parameters."""
 
+
     def __post_init__(self):
+        self.get_optimal_new_camera_matrix()
+
+
+    def get_optimal_new_camera_matrix(self):
+        """Compute the new intrinsics matrix and ROI for rectifying distorted raw image."""
+        
         self.new_camera_matrix, self.roi = cv2.getOptimalNewCameraMatrix(
             cameraMatrix=self.intrinsics.matrix,
             distCoeffs=self.dist_coeffs,
@@ -118,6 +130,7 @@ class Camera:
             newImgSize=(self.width, self.height),
         )
         self.roi_x, self.roi_y, self.roi_w, self.roi_h = self.roi
+
 
     @classmethod
     def create_from_json(cls, calib_json: Path):
@@ -142,6 +155,7 @@ class Camera:
             calibration_json=calib_json,
         )
 
+
     def undistort_frame(self, frame: np.ndarray) -> np.ndarray:
         """Undistort the current frame."""
 
@@ -151,7 +165,7 @@ class Camera:
             cameraMatrix=self.intrinsics.matrix,
             distCoeffs=self.dist_coeffs,
             dst=None,
-            newCameraMatrix=self.new_camera_matrix
+            newCameraMatrix=self.new_camera_matrix,
         )
 
         # Crop and resize to original size
@@ -165,6 +179,7 @@ class Camera:
             interpolation=cv2.INTER_LINEAR,
         )
         return resized_undistorted
+
 
 
 @dataclass
@@ -181,8 +196,11 @@ class U20Camera(Camera):
         "True: the camera is connected; False: camera is not connected."
         return self.capture.isOpened()
 
+
     def __post_init__(self):
+        self.get_optimal_new_camera_matrix()
         self.capture = cv2.VideoCapture(self.source_device)
+
 
     def get_frame(self, undistort: bool = True) -> np.ndarray | None:
         """Get a frame from a running capture."""
@@ -199,9 +217,11 @@ class U20Camera(Camera):
             else:
                 return frame
 
+
     def release_capture(self):
         """Stop streaming images."""
         self.capture.release()
+
 
 
 if __name__ == "__main__":
