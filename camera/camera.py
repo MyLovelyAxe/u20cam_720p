@@ -188,7 +188,7 @@ class U20Camera(Camera):
 
     @property
     def source_device(self) -> str:
-        "The device name of the camera, either given or use the default one."
+        "The device name of the camera."
         return U20CAM_720P_SOURCE
 
     @property
