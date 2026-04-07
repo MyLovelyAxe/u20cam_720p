@@ -10,7 +10,7 @@ U20CAM_720P_SOURCE = "/dev/video2"   # same device as your test script
 
 # calibration
 
-SAVE_DIR_CALIB_IMAGES = REPO_ROOT / "calibration_images"
+SAVE_DIR_CALIB_IMAGES = REPO_ROOT / "calibration/calibration_images"
 NUM_IMAGE_TO_SAVE = 25
 INTERVAL_SECOND_TO_SAVE = 1.0
 CALIB_PARAM_JSON = REPO_ROOT / "configs/u20cam_calib.json"

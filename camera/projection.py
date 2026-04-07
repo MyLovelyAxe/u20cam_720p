@@ -66,33 +66,37 @@ class Projector:
     """To which camera to project the image."""
 
     def __post_init__(self):
+        """
+        NOTE: remap requires backward mapping, 
+        i.e. for the target pixels, where should Ithey sample in the source image.
+        """
 
         # coordinates
         # NOTE: note the order of W and H
         u, v = np.meshgrid(
-            np.arange(self.src_cam.width),
-            np.arange(self.src_cam.height),
+            np.arange(self.tgt_cam.width),
+            np.arange(self.tgt_cam.height),
         )
-        src_coords = np.stack((u, v, np.ones_like(u)),axis=-1).reshape(-1,3) # shape: [N, 3]
+        tgt_coords = np.stack((u, v, np.ones_like(u)),axis=-1).reshape(-1,3) # shape: [N, 3]
 
         # transformation
-        src_K_inv = np.linalg.inv(self.src_cam.intrinsics.matrix) # shape: [3, 3]
-        src_rays = src_K_inv @ src_coords.T # shape: [3, N] = [3, 3] @ [N, 3].T
+        tgt_K_inv = np.linalg.inv(self.tgt_cam.intrinsics.matrix) # shape: [3, 3]
+        tgt_rays = tgt_K_inv @ tgt_coords.T # shape: [3, N] = [3, 3] @ [N, 3].T
         # relative rotation
-        # R_rel @ P_src = P_tgt
-        # R_rel @ (R_src @ P_w) = R_tgt @ P_w
-        # R_rel @ R_src = R_tgt
-        # R_rel = R_tgt @ inv(R_src)
-        rotation_relative = self.tgt_cam.extrinsics.rotation @ np.linalg.inv(self.src_cam.extrinsics.rotation) # shape: [3, 3]
-        tgt_rays = rotation_relative @ src_rays # shape: [3, N] = [3, 3] @ [3, N]
-        tgt_coords = (self.tgt_cam.intrinsics.matrix @ tgt_rays).T # shape: [N, 3] = ([3, 3] @ [3, N]).T
-        tgt_coords /= tgt_coords[:, 2].reshape(-1, 1) # shape: [N, 2]
+        # R_rel @ P_tgt = P_src
+        # R_rel @ (P_tgt @ P_w) = P_src @ P_w
+        # R_rel @ P_tgt = P_src
+        # R_rel = P_src @ inv(P_tgt)
+        rotation_relative = self.src_cam.extrinsics.rotation @ np.linalg.inv(self.tgt_cam.extrinsics.rotation) # shape: [3, 3]
+        src_rays = rotation_relative @ tgt_rays # shape: [3, N] = [3, 3] @ [3, N]
+        src_coords = (self.src_cam.intrinsics.matrix @ src_rays).T # shape: [N, 3] = ([3, 3] @ [3, N]).T
+        src_coords /= src_coords[:, 2].reshape(-1, 1) # shape: [N, 2]
 
         # remapping
         # TODO: what if the target image size is different from source camera?
         # NOTE: note the order of H and W
-        self.x_map = tgt_coords[:, 0].reshape(self.src_cam.height, self.src_cam.width).astype(np.float32) # x coordinate mapping, shape: [w, h]
-        self.y_map = tgt_coords[:, 1].reshape(self.src_cam.height, self.src_cam.width).astype(np.float32) # y coordinate mapping, shape: [w, h]
+        self.x_map = src_coords[:, 0].reshape(self.src_cam.height, self.src_cam.width).astype(np.float32) # x coordinate mapping, shape: [w, h]
+        self.y_map = src_coords[:, 1].reshape(self.src_cam.height, self.src_cam.width).astype(np.float32) # y coordinate mapping, shape: [w, h]
 
 
     def __call__(self, img: np.ndarray):
