@@ -79,17 +79,24 @@ class Projector:
         )
         tgt_coords = np.stack((u, v, np.ones_like(u)),axis=-1).reshape(-1,3) # shape: [N, 3]
 
-        # transformation
+        # project 2d coordinates to 3d rays
         tgt_K_inv = np.linalg.inv(self.tgt_cam.intrinsics.matrix) # shape: [3, 3]
         tgt_rays = tgt_K_inv @ tgt_coords.T # shape: [3, N] = [3, 3] @ [N, 3].T
-        # relative rotation
-        # R_rel @ P_tgt = P_src
-        # R_rel @ (P_tgt @ P_w) = P_src @ P_w
-        # R_rel @ P_tgt = P_src
-        # R_rel = P_src @ inv(P_tgt)
+
+        # rotate source camera (i.e. rays) to target pose
+        # compute the relative rotation:
+        #   R_rel @ P_tgt = P_src
+        #   R_rel @ (P_tgt @ P_w) = P_src @ P_w
+        #   R_rel @ P_tgt = P_src
+        #   R_rel = P_src @ inv(P_tgt)
         rotation_relative = self.src_cam.extrinsics.rotation @ np.linalg.inv(self.tgt_cam.extrinsics.rotation) # shape: [3, 3]
         src_rays = rotation_relative @ tgt_rays # shape: [3, N] = [3, 3] @ [3, N]
+        
+        # project 3d rays in target pose to 2d image space
         src_coords = (self.src_cam.intrinsics.matrix @ src_rays).T # shape: [N, 3] = ([3, 3] @ [3, N]).T
+
+        # normalize
+        # NOTE: "normalize after project" is the same with "project after normalize"
         src_coords /= src_coords[:, 2].reshape(-1, 1) # shape: [N, 2]
 
         # remapping
