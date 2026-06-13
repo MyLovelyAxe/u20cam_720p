@@ -12,6 +12,8 @@ from typing import List, Dict, Tuple, Optional
 from constants import (
     DEFAULT_DATA_TYPE,
     U20CAM_720P_SOURCE,
+    LAPTOP_LEFT_USB_1,
+    LAPTOP_RIGHT_USB_1,
     CALIB_PARAM_JSON,
 )
 
@@ -95,15 +97,15 @@ class Extrinsics:
 class Camera:
     """Base class for all type of cameras."""
 
-    intrinsics: Intrinsics
+    intrinsics: Intrinsics = None
     """Including focal lengths, principal points, distorsion coefficients."""
-    extrinsics: Optional[Extrinsics]
+    extrinsics: Optional[Extrinsics] = None
     """Including rotation and translation."""
-    dist_coeffs: np.ndarray
+    dist_coeffs: np.ndarray = None
     """Distorsion coefficients, shape (length,)"""
-    width: float
+    width: float = None
     """Width of raw image."""
-    height: float
+    height: float = None
     """Height of raw image."""
     model: str = "opencv_pinhole"
     """The model of this camera."""
@@ -113,9 +115,13 @@ class Camera:
     """Basic data type for np.array-type attributes."""
     calibration_json: Optional[Path] = None
     """The u20cam_calib.json containing the camera calibration parameters."""
+    calib_loaded: bool = False
+    """Indicator whether the calibration parameters are already loaded."""
 
 
     def __post_init__(self):
+        if not self.calib_loaded:
+            self.load_calib_params_from_json(self.calibration_json)
         self.get_optimal_new_camera_matrix()
 
 
@@ -130,6 +136,29 @@ class Camera:
             newImgSize=(self.width, self.height),
         )
         self.roi_x, self.roi_y, self.roi_w, self.roi_h = self.roi
+
+
+    def load_calib_params_from_json(self, calib_json: Path):
+        """Load calibration parameters from exteral json."""
+
+        with open(calib_json, "r") as f:
+            calib = json.load(f)
+        self.intrinsics=Intrinsics(
+            fx=calib["intrinsics"]["fx"],
+            fy=calib["intrinsics"]["fy"],
+            cx=calib["intrinsics"]["cx"],
+            cy=calib["intrinsics"]["cy"],
+        )
+        self.extrinsics=None
+        self.dist_coeffs=np.array(
+            calib["distortion"]["coefficients"], 
+            dtype=self.data_type,
+        )
+        self.width=calib["image_width"]
+        self.height=calib["image_height"]
+        self.model=calib["distortion"]["model"]
+        self.calibration_json=calib_json
+        self.calib_loaded = True
 
 
     @classmethod
@@ -153,6 +182,7 @@ class Camera:
             height=calib["image_height"],
             model=calib["distortion"]["model"],
             calibration_json=calib_json,
+            calib_loaded=True,
         )
 
 
@@ -183,13 +213,11 @@ class Camera:
 
 
 @dataclass
-class U20Camera(Camera):
-    """Camera model of U20CAM 720P."""
+class UsbCamera(Camera):
+    """Cameras which needs to be physically connected by usb port and stream."""
 
-    @property
-    def source_device(self) -> str:
-        "The device name of the camera."
-        return U20CAM_720P_SOURCE
+    usb_port: str = LAPTOP_LEFT_USB_1
+    """The device name of the camera."""
 
     @property
     def camera_connected(self) -> bool:
@@ -198,8 +226,15 @@ class U20Camera(Camera):
 
 
     def __post_init__(self):
+        if not self.calib_loaded:
+            self.load_calib_params_from_json(self.calibration_json)
         self.get_optimal_new_camera_matrix()
-        self.capture = cv2.VideoCapture(self.source_device)
+        self.capture = cv2.VideoCapture(self.usb_port)
+        self.capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        self.capture.set(cv2.CAP_PROP_FPS, 30)
+        self.capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 
     def get_frame(self, undistort: bool = True) -> np.ndarray | None:
@@ -222,6 +257,10 @@ class U20Camera(Camera):
         """Stop streaming images."""
         self.capture.release()
 
+
+@dataclass
+class U20Camera(UsbCamera):
+    """Camera model of U20CAM 720P."""
 
 
 if __name__ == "__main__":
