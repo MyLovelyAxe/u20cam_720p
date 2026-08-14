@@ -4,10 +4,12 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 import cv2
 import json
+import time
 import numpy as np
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional
+from threading import Thread, Lock, Event
 
 from constants import (
     DEFAULT_DATA_TYPE,
@@ -55,6 +57,7 @@ class Intrinsics:
     @classmethod
     def create_from_matrix(cls, matrix: np.ndarray) -> 'Intrinsics':
         """Create Intrinsics object with matrix."""
+
         return cls(
             fx=float(matrix[0,0]),
             fy=float(matrix[1,1]),
@@ -85,6 +88,7 @@ class Extrinsics:
     @classmethod
     def create_from_homogeneous(cls, hom: np.ndarray) -> 'Extrinsics':
         """Create Intrinsics object with matrix."""
+
         assert hom.shape == (4,4), f"The homogeneous matrix shape is {hom.shape}, not (4,4)"
         return cls(
             rotation=hom[0:3, 0:3],
@@ -120,6 +124,8 @@ class Camera:
 
 
     def __post_init__(self):
+
+        # Load the camera
         if not self.calib_loaded:
             self.load_calib_params_from_json(self.calibration_json)
         self.get_optimal_new_camera_matrix()
@@ -164,6 +170,7 @@ class Camera:
     @classmethod
     def create_from_json(cls, calib_json: Path):
         """Create a Camera object given json file with calibration parameters."""
+
         with open(calib_json, "r") as f:
             calib = json.load(f)
         return cls(
@@ -208,6 +215,7 @@ class Camera:
             dsize=(self.width, self.height), 
             interpolation=cv2.INTER_LINEAR,
         )
+
         return resized_undistorted
 
 
@@ -218,18 +226,40 @@ class UsbCamera(Camera):
 
     usb_port: str = LAPTOP_LEFT_USB_1
     """The device name of the camera."""
+    undistort: bool = True
+    """Whether undirtort the captured frame or not."""
+
 
     @property
-    def camera_connected(self) -> bool:
+    def is_connected(self) -> bool:
         "True: the camera is connected; False: camera is not connected."
-        return self.capture.isOpened()
+        return self.capture is not None and self.capture.isOpened()
+    
+    @property
+    def latest_frame(self) -> np.ndarray | None:
+        """Read the buffer for the latest captured and stored frame."""
+        with self._lock:
+            return self._buffer
 
 
     def __post_init__(self):
-        if not self.calib_loaded:
-            self.load_calib_params_from_json(self.calibration_json)
-        self.get_optimal_new_camera_matrix()
+
+        super().__post_init__()
+        self.capture = None
+        self._camera_thread = None
+        self._lock = Lock()
+        self._stop_event = Event() # Stop signal to stop the capture loop
+        self._buffer: Optional[np.ndarray] = None # Store the latest frames
+
+
+    def _open_camera(self):
+        """Create capture to be ready for frame capturing."""
+
         self.capture = cv2.VideoCapture(self.usb_port)
+        if not self.capture.isOpened():
+            self.capture.release()
+            self.capture = None
+            raise RuntimeError(f"Failed to open camera at port {self.usb_port}")
         self.capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
@@ -237,25 +267,58 @@ class UsbCamera(Camera):
         self.capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 
-    def get_frame(self, undistort: bool = True) -> np.ndarray | None:
-        """Get a frame from a running capture."""
-        if not self.camera_connected:
-            warnings.warn("The camera is not connected, no running capture.")
-            return None
-        else:
-            ret, frame = self.capture.read()
-            if not ret:
-                print("Failed to grab frame")
-                return None
-            if undistort:
-                return self.undistort_frame(frame)
-            else:
-                return frame
+    def connect(self):
+        """Connect camera and start the capturing thread."""
+
+        self._stop_event.clear()
+        self._camera_thread = Thread(
+            target=self._capture_loop,
+            daemon=True, # NOTE: This thread should not prevent the Python program from exiting
+        )
+        self._camera_thread.start()
+
+    
+    def _capture_loop(self):
+        """Capture a frame and store in the buffer."""
+
+        self._open_camera()
+
+        try:
+            while not self._stop_event.is_set():
+                if not self.is_connected:
+                    warnings.warn(
+                        f"The camera is not connected, stopping capture loop."
+                    )
+                    break
+                ret, frame = self.capture.read()
+                if not ret:
+                    warnings.warn("Failed to grab frame")
+                    continue
+                if self.undistort:
+                    frame = self.undistort_frame(frame)
+                with self._lock:
+                    self._buffer = frame
+        finally:
+            self.release_capture()
+
+
+    def disconnect(self):
+        """Set stop signal for stopping capture loop."""
+
+        self._stop_event.set()
+        if self._camera_thread is not None:
+            self._camera_thread.join()
+            self._camera_thread = None
+        logging.info(f"The camera is disconnected")
 
 
     def release_capture(self):
         """Stop streaming images."""
-        self.capture.release()
+
+        if self.capture is not None:
+            self.capture.release()
+            self.capture = None
+        logging.info(f"The capture is released")
 
 
 @dataclass
@@ -267,9 +330,14 @@ if __name__ == "__main__":
 
     u20cam = U20Camera.create_from_json(CALIB_PARAM_JSON)
     print(u20cam.intrinsics)
-    count = 0
-    while count < 30:
-        frame = u20cam.get_frame()
-        if frame:
-            print(f"frame shape: {frame.shape}")
-        count +=1
+    try:
+        count = 0
+        u20cam.connect()
+        while count < 30:
+            frame = u20cam.latest_frame
+            if frame is not None:
+                print(f"frame shape: {frame.shape}")
+            count +=1
+            time.sleep(0.02)
+    finally:
+        u20cam.disconnect()
