@@ -68,7 +68,7 @@ class Projector:
     def __post_init__(self):
         """
         NOTE: remap requires backward mapping, 
-        i.e. for the target pixels, where should Ithey sample in the source image.
+        i.e. for the target pixels, where should they sample in the source image.
         """
 
         # coordinates

@@ -83,7 +83,7 @@ class Extrinsics:
     
 
     @classmethod
-    def create_from_homogeneous(cls, hom: np.ndarray) -> 'Intrinsics':
+    def create_from_homogeneous(cls, hom: np.ndarray) -> 'Extrinsics':
         """Create Intrinsics object with matrix."""
         assert hom.shape == (4,4), f"The homogeneous matrix shape is {hom.shape}, not (4,4)"
         return cls(
@@ -110,7 +110,7 @@ class Camera:
     model: str = "opencv_pinhole"
     """The model of this camera."""
     alpha: float = 0.0
-    """TODO: clear documentation here, when 1.0: keep full FoV, large distortion at edge"""
+    """When 1.0: keep full FoV, large distortion at edge"""
     data_type: type = DEFAULT_DATA_TYPE
     """Basic data type for np.array-type attributes."""
     calibration_json: Optional[Path] = None
