@@ -17,6 +17,10 @@ from constants import (
     LAPTOP_LEFT_USB_1,
     LAPTOP_RIGHT_USB_1,
     CALIB_PARAM_JSON,
+    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_1,
+    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_2,
+    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_3,
+    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_4,
 )
 
 
@@ -249,6 +253,7 @@ class UsbCamera(Camera):
         self._camera_thread = None
         self._lock = Lock()
         self._stop_event = Event() # Stop signal to stop the capture loop
+        self._has_frame_event = Event() # Set when the first frame is ready
         self._buffer: Optional[np.ndarray] = None # Store the latest frames
 
 
@@ -260,6 +265,7 @@ class UsbCamera(Camera):
             self.capture.release()
             self.capture = None
             raise RuntimeError(f"Failed to open camera at port {self.usb_port}")
+        logging.info(f"Camera at port {self.usb_port} is opened.")
         self.capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
@@ -271,11 +277,13 @@ class UsbCamera(Camera):
         """Connect camera and start the capturing thread."""
 
         self._stop_event.clear()
+        self._has_frame_event.clear()
         self._camera_thread = Thread(
             target=self._capture_loop,
             daemon=True, # NOTE: This thread should not prevent the Python program from exiting
         )
         self._camera_thread.start()
+        self._has_frame_event.wait() # wait for the first frame to be ready, then return, finish connection
 
     
     def _capture_loop(self):
@@ -298,6 +306,8 @@ class UsbCamera(Camera):
                     frame = self.undistort_frame(frame)
                 with self._lock:
                     self._buffer = frame
+                if not self._has_frame_event.is_set():
+                    self._has_frame_event.set()
         finally:
             self.release_capture()
 
@@ -309,6 +319,7 @@ class UsbCamera(Camera):
         if self._camera_thread is not None:
             self._camera_thread.join()
             self._camera_thread = None
+        self._has_frame_event.clear()
         logging.info(f"The camera is disconnected")
 
 
@@ -328,16 +339,32 @@ class U20Camera(UsbCamera):
 
 if __name__ == "__main__":
 
-    u20cam = U20Camera.create_from_json(CALIB_PARAM_JSON)
+    # u20cam = U20Camera.create_from_json(CALIB_PARAM_JSON)
+    u20cam = U20Camera(
+        usb_port=LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_4,
+        calibration_json=CALIB_PARAM_JSON,
+    )
     print(u20cam.intrinsics)
+
     try:
         count = 0
         u20cam.connect()
-        while count < 30:
+        while True:
             frame = u20cam.latest_frame
-            if frame is not None:
-                print(f"frame shape: {frame.shape}")
+            if frame is None:
+                warnings.warn(f"No frame is returned, skip...")
+                count +=1
+                continue
+
+            if count % 100 == 0:
+                logging.info(f"{count}th frame shape: {frame.shape}")
+            cv2.imshow(f"Camera at port {u20cam.usb_port}", frame)
+
             count +=1
-            time.sleep(0.02)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+
     finally:
         u20cam.disconnect()
