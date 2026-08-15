@@ -4,8 +4,10 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 import cv2
 import json
+import time
 import numpy as np
 from pathlib import Path
+from datetime import datetime
 from dataclasses import dataclass
 from typing import Tuple, Optional
 from threading import Thread, Lock, Event
@@ -16,6 +18,7 @@ from constants import (
     LAPTOP_LEFT_USB_1,
     LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_4,
 )
+from camera_utils.image import Frame
 
 
 @dataclass
@@ -234,7 +237,7 @@ class UsbCamera(Camera):
         return self.capture is not None and self.capture.isOpened()
     
     @property
-    def latest_frame(self) -> np.ndarray | None:
+    def latest_frame(self) -> Frame | None:
         """Read the buffer for the latest captured and stored frame."""
         with self._lock:
             return self._buffer
@@ -248,7 +251,7 @@ class UsbCamera(Camera):
         self._lock = Lock()
         self._stop_event = Event() # Stop signal to stop the capture loop
         self._has_frame_event = Event() # Set when the first frame is ready
-        self._buffer: Optional[np.ndarray] = None # Store the latest frames
+        self._buffer: Optional[Frame] = None # Store the latest frames
 
 
     def _open_camera(self):
@@ -299,7 +302,13 @@ class UsbCamera(Camera):
                 if self.undistort:
                     frame = self.undistort_frame(frame)
                 with self._lock:
-                    self._buffer = frame
+                    unix_time = time.time()
+                    self._buffer = Frame(
+                        timestamp=unix_time,
+                        time=datetime.fromtimestamp(unix_time).strftime("%Y-%m-%d:%H-%M-%S"),
+                        frame=frame,
+                    )
+                    
                 if not self._has_frame_event.is_set():
                     self._has_frame_event.set()
         finally:
@@ -352,8 +361,8 @@ if __name__ == "__main__":
                 continue
 
             if count % 100 == 0:
-                logging.info(f"{count}th frame shape: {frame.shape}")
-            cv2.imshow(f"Camera at port {u20cam.usb_port}", frame)
+                logging.info(f"{count}th frame time: {frame.time}, shape: {frame.frame.shape}")
+            cv2.imshow(f"Camera at port {u20cam.usb_port}", frame.frame)
 
             count +=1
 

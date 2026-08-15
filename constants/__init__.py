@@ -25,6 +25,7 @@ LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_2 = f"{DEV_V4L_BY_PATH}/pci-0000:00:14.0-usb-0
 LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_3 = f"{DEV_V4L_BY_PATH}/pci-0000:00:14.0-usb-0:2.3:1.0-video-index0"
 LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_4 = f"{DEV_V4L_BY_PATH}/pci-0000:00:14.0-usb-0:2.4:1.0-video-index0"
 
+# TODO: remove so101
 class So101Camera(str, Enum):
     """The usb path of camera on usb hub for SO101 robot arm system."""
     wrist_cam = LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_3

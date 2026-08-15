@@ -2,7 +2,7 @@ import cv2
 import copy
 import numpy as np
 from dataclasses import dataclass
-from camera.camera import Camera
+from camera_utils.camera import Camera
 
 
 @dataclass

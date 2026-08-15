@@ -7,13 +7,12 @@ Usage:
     $ python multi_cameras.py
 """
 
-import warnings
 import logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 import cv2
 import numpy as np
-from camera.camera import U20Camera
+from camera_utils.camera import U20Camera
 
 from constants import (
     DEFAULT_DATA_TYPE,
@@ -21,6 +20,7 @@ from constants import (
     LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_2,
     LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_4,
 )
+from camera_utils.image import Frame
 
 
 def main():
@@ -49,19 +49,19 @@ def main():
             frame_2 = camera_2.latest_frame
             frame_4 = camera_4.latest_frame
             if frame_2 is None:
-                warnings.warn(f"No frame_2 is returned, show empty frame")
-                frame_2 = np.copy(empty_frame)
+                logging.warning(f"No frame_2 is returned, show empty frame")
+                frame_2 = Frame(frame=np.copy(empty_frame))
             if frame_4 is None:
-                warnings.warn(f"No frame_4 is returned, show empty frame")
-                frame_4 = np.copy(empty_frame)
+                logging.warning(f"No frame_4 is returned, show empty frame")
+                frame_2 = Frame(frame=np.copy(empty_frame))
 
             if count % 100 == 0:
                 logging.info(
-                    f"{count}th frame 2 shape: {frame_2.shape}, "
-                    f"{count}th frame 4 shape: {frame_4.shape}"
+                    f"{count}th frame 2 time: {frame_2.time}, shape: {frame_2.frame.shape}, "
+                    f"{count}th frame 4 time: {frame_4.time}, shape: {frame_4.frame.shape}"
                 )
-            cv2.imshow(f"Camera at port {camera_2.usb_port}", frame_2)
-            cv2.imshow(f"Camera at port {camera_4.usb_port}", frame_4)
+            cv2.imshow(f"Camera at port {camera_2.usb_port}", frame_2.frame)
+            cv2.imshow(f"Camera at port {camera_4.usb_port}", frame_4.frame)
 
             count +=1
 

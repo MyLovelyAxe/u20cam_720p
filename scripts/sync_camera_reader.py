@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 import cv2
 import numpy as np
-from camera.camera import U20Camera
+from camera_utils.camera import U20Camera
 
 from constants import (
     DEFAULT_DATA_TYPE,
@@ -20,7 +20,8 @@ from constants import (
     LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_2,
     LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_4,
 )
-from camera.reader import SyncCameraReader
+from camera_utils.reader import SyncCameraReader
+from camera_utils.image import Frame
 
 
 def main():
@@ -54,13 +55,13 @@ def main():
             for camera_name, frame in frames.items():
                 if frame is None:
                    logging.warning(f"Camera {camera_name} failed to capture frame, show empty frame")
-                   frame = np.copy(empty_frame)
-                cv2.imshow(f"Camera {camera_name}", frame)
+                   frame = Frame(frame=np.copy(empty_frame))
+                cv2.imshow(f"Camera {camera_name}", frame.frame)
 
             if count % 100 == 0:
                 log_str = f"{count}th frames: "
                 for camera_name, frame in frames.items():
-                    log_str += f"Camera {camera_name} shape: {frame.shape} | "
+                    log_str += f"Camera {camera_name} timestamp: {frame.timestamp}, time: {frame.time}, shape: {frame.frame.shape} | "
                 logging.info(log_str)
 
             count +=1

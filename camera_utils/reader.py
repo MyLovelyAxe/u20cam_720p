@@ -1,27 +1,12 @@
-import warnings
 import logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-import cv2
-import json
 import numpy as np
-from pathlib import Path
 from dataclasses import dataclass
-from typing import Tuple, Optional, List, Dict
-from threading import Thread, Lock, Event
+from typing import Dict
 
-from camera.camera import UsbCamera
-from constants import (
-    DEFAULT_DATA_TYPE,
-    U20CAM_720P_SOURCE,
-    LAPTOP_LEFT_USB_1,
-    LAPTOP_RIGHT_USB_1,
-    CALIB_PARAM_JSON,
-    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_1,
-    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_2,
-    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_3,
-    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_4,
-)
+from camera_utils.camera import UsbCamera
+from camera_utils.image import Frame
 
 
 
@@ -61,7 +46,7 @@ class SyncCameraReader(BaseCameraReader):
     as the frames from the same timestamps or timestamps close enough.
     """
 
-    def get_frames(self) -> Dict[str, np.ndarray | None]:
+    def get_frames(self) -> Dict[str, Frame | None]:
 
         frames = dict()
         for name, camera in self.cameras.items():
