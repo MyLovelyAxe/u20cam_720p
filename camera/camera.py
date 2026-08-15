@@ -4,22 +4,16 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 import cv2
 import json
-import time
 import numpy as np
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Optional
+from typing import Tuple, Optional
 from threading import Thread, Lock, Event
 
 from constants import (
     DEFAULT_DATA_TYPE,
-    U20CAM_720P_SOURCE,
-    LAPTOP_LEFT_USB_1,
-    LAPTOP_RIGHT_USB_1,
     CALIB_PARAM_JSON,
-    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_1,
-    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_2,
-    LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_3,
+    LAPTOP_LEFT_USB_1,
     LAPTOP_RIGHT_USB_1_USB_HUB_SOCKET_4,
 )
 
@@ -330,6 +324,7 @@ class UsbCamera(Camera):
             self.capture.release()
             self.capture = None
         logging.info(f"The capture is released")
+
 
 
 @dataclass
